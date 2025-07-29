@@ -2,13 +2,14 @@
 import asyncio
 import async_timeout
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, SCAN_INTERVAL, API_SUMMARY_ENDPOINT, API_DETAILS_ENDPOINT_FORMAT
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, API_SUMMARY_ENDPOINT, API_DETAILS_ENDPOINT_FORMAT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,10 +18,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Scrutiny from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     base_url = entry.data["base_url"]
-    # Get the verify_ssl option, defaulting to True if it's not present (for backward compatibility)
     verify_ssl = entry.data.get("verify_ssl", True)
 
-    coordinator = ScrutinyDataUpdateCoordinator(hass, base_url, verify_ssl)
+    scan_interval_minutes = entry.options.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+    update_interval = timedelta(minutes=scan_interval_minutes)
+
+    coordinator = ScrutinyDataUpdateCoordinator(hass, base_url, verify_ssl, update_interval)
     await coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -49,19 +52,18 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 class ScrutinyDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Scrutiny data."""
 
-    def __init__(self, hass: HomeAssistant, base_url: str, verify_ssl: bool) -> None:
+    def __init__(self, hass: HomeAssistant, base_url: str, verify_ssl: bool, update_interval: timedelta) -> None:
         """Initialize."""
         self.base_url = base_url
-        self.verify_ssl = verify_ssl  # Store the SSL setting
+        self.verify_ssl = verify_ssl
         self.websession = async_get_clientsession(hass)
 
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
 
     async def _async_update_data(self):
         """Fetch data from API endpoint."""
         try:
             async with async_timeout.timeout(30):
-                # 1. Get the summary to discover device WWNs
                 summary_url = f"{self.base_url}{API_SUMMARY_ENDPOINT}"
                 summary_resp = await self.websession.get(summary_url, ssl=self.verify_ssl)
                 summary_resp.raise_for_status()
@@ -72,7 +74,6 @@ class ScrutinyDataUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.warning("Scrutiny summary returned no devices.")
                     return {}
 
-                # 2. For each WWN, fetch its detailed information concurrently
                 tasks = []
                 for wwn in wwns:
                     details_url = f"{self.base_url}{API_DETAILS_ENDPOINT_FORMAT.format(wwn=wwn)}"
