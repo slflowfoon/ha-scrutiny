@@ -21,7 +21,6 @@ async def async_setup_entry(
     """Set up the Scrutiny sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    # Create and add sensors
     new_entities = [
         ScrutinySensor(coordinator, wwn) for wwn in coordinator.data
     ]
@@ -40,16 +39,17 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
         self._wwn = wwn
         self._attr_unique_id = f"scrutiny_{wwn}"
 
-        # Set initial static device info
         device_details = self.coordinator.data.get(self._wwn, {})
         device_data = device_details.get("data", {}).get("device", {})
         model_name = device_data.get("model_name", f"Scrutiny Drive {self._wwn}")
+        base_url = self.coordinator.base_url
 
         self._attr_device_info = {
             "identifiers": {(DOMAIN, self._wwn)},
             "name": model_name,
             "model": model_name,
             "manufacturer": "Scrutiny",
+            "configuration_url": f"{base_url}/web/device/{self._wwn}",
         }
 
     @callback
@@ -93,7 +93,6 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
         latest_smart_data = smart_results[0] if smart_results else {}
         metadata = device_details.get("metadata", {})
 
-        # Start with base attributes, formatted exactly as requested
         attributes = {
             "WWN": self._wwn,
             "Host ID": device_data.get("host_id"),
@@ -102,12 +101,9 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
             "Power On Hours": latest_smart_data.get("power_on_hours"),
         }
         
-        # Add all S.M.A.R.T. attributes with their pre-formatted display names as keys
         smart_attrs = latest_smart_data.get("attrs", {})
         for attr_id, attr_data in smart_attrs.items():
             attr_info = metadata.get(str(attr_id), {})
-            
-            # THE FIX: Check if display_name exists, otherwise format as "Unknown"
             if "display_name" in attr_info and attr_info["display_name"]:
                 attr_name = attr_info["display_name"]
             else:
