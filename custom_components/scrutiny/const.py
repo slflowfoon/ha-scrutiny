@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 DOMAIN = "scrutiny"
-SCAN_INTERVAL = timedelta(minutes=15)
+DEFAULT_SCAN_INTERVAL = 15
 
 # API Endpoints
 API_SUMMARY_ENDPOINT = "/api/summary"
