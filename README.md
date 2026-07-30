@@ -7,7 +7,7 @@
 <p align=center>
 <img src=https://img.shields.io/badge/HACS-Default-orange.svg>
 <img src="https://img.shields.io/maintenance/yes/2026.svg">
-<img src=https://img.shields.io/badge/version-1.1.0-blue>
+<img src=https://img.shields.io/badge/version-1.2.0-blue>
 <img alt="Issues" src="https://img.shields.io/github/issues/slflowfoon/ha-scrutiny?color=0088ff">
     <p align=center style="font-weight:bold">
       Imports stats from Scrutiny to Home Assistant
@@ -19,6 +19,8 @@
 The integration creates:
 
 - One temperature sensor for each drive returned by Scrutiny.
+- `sensor.scrutiny_active_issues`, whose state is the number of active SMART
+  warnings and failures and whose `issues` attribute groups them by drive.
 - `event.scrutiny_smart_attribute_degraded`, which fires when one or more
   SMART attributes on a drive move to a worse status.
 

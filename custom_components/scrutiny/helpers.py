@@ -82,6 +82,52 @@ def status_name(status: int) -> str:
     return ", ".join(labels)
 
 
+def get_active_issues(
+    devices: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return all currently active SMART warnings and failures by drive."""
+    active_drives = []
+
+    for wwn, device_details in devices.items():
+        latest_data = get_latest_smart_data(device_details)
+        attributes = latest_data.get("attrs", {})
+        metadata = device_details.get("metadata", {})
+        active_attributes = []
+
+        for attribute_id, attribute in attributes.items():
+            attribute_id = str(attribute_id)
+            status = int(attribute.get("status") or ATTRIBUTE_STATUS_PASSED)
+            if status_severity(status) == 0:
+                continue
+
+            attribute_metadata = metadata.get(attribute_id, {})
+            active_attributes.append(
+                {
+                    "attribute_id": attribute_id,
+                    "name": get_attribute_name(device_details, attribute_id),
+                    "status": status,
+                    "status_name": status_name(status),
+                    "status_reason": attribute.get("status_reason"),
+                    "critical": bool(attribute_metadata.get("critical", False)),
+                }
+            )
+
+        if not active_attributes:
+            continue
+
+        device_data = device_details.get("data", {}).get("device", {})
+        active_drives.append(
+            {
+                "wwn": wwn,
+                "host_id": device_data.get("host_id"),
+                "drive_name": device_data.get("model_name"),
+                "attributes": active_attributes,
+            }
+        )
+
+    return active_drives
+
+
 def find_degraded_attributes(
     previous_statuses: dict[str, int],
     device_details: dict[str, Any],

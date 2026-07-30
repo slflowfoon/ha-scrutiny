@@ -101,6 +101,61 @@ class ScrutinyHelpersTest(unittest.TestCase):
         self.assertEqual(2, helpers.status_severity(8))
         self.assertEqual("unknown status flag 8", helpers.status_name(8))
 
+    def test_active_issues_are_grouped_by_drive(self):
+        devices = {
+            "drive-1": {
+                **device_details(
+                    {
+                        "5": {"status": 4, "status_reason": "Failed"},
+                        "197": {"status": 0},
+                    }
+                ),
+                "data": {
+                    "device": {
+                        "host_id": "host-1",
+                        "model_name": "Drive One",
+                    },
+                    "smart_results": [
+                        {
+                            "attrs": {
+                                "5": {
+                                    "status": 4,
+                                    "status_reason": "Failed",
+                                },
+                                "197": {"status": 0},
+                            }
+                        }
+                    ],
+                },
+            },
+            "drive-2": {
+                **device_details({"197": {"status": 2}}),
+                "data": {
+                    "device": {
+                        "host_id": "host-2",
+                        "model_name": "Drive Two",
+                    },
+                    "smart_results": [
+                        {"attrs": {"197": {"status": 2}}}
+                    ],
+                },
+            },
+        }
+
+        issues = helpers.get_active_issues(devices)
+
+        self.assertEqual(2, len(issues))
+        self.assertEqual("Drive One", issues[0]["drive_name"])
+        self.assertEqual(1, len(issues[0]["attributes"]))
+        self.assertEqual(
+            "Scrutiny failure",
+            issues[0]["attributes"][0]["status_name"],
+        )
+        self.assertEqual(
+            "Scrutiny warning",
+            issues[1]["attributes"][0]["status_name"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

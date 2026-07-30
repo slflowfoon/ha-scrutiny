@@ -9,7 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .helpers import get_attribute_name, get_latest_smart_data
+from .helpers import get_active_issues, get_attribute_name, get_latest_smart_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,11 +22,37 @@ async def async_setup_entry(
     """Set up the Scrutiny sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    new_entities = [
+    new_entities = [ScrutinyActiveIssuesSensor(coordinator, entry)]
+    new_entities.extend(
         ScrutinySensor(coordinator, wwn) for wwn in coordinator.data
-    ]
-    if new_entities:
-        async_add_entities(new_entities)
+    )
+    async_add_entities(new_entities)
+
+
+class ScrutinyActiveIssuesSensor(CoordinatorEntity, SensorEntity):
+    """Count and describe all active Scrutiny SMART issues."""
+
+    _attr_has_entity_name = False
+    _attr_icon = "mdi:alert-circle-outline"
+    _attr_name = "Scrutiny Active Issues"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        """Initialize the aggregate active issues sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_active_issues"
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of active SMART warnings and failures."""
+        return sum(
+            len(drive["attributes"])
+            for drive in get_active_issues(self.coordinator.data)
+        )
+
+    @property
+    def extra_state_attributes(self):
+        """Return all active issues grouped by drive."""
+        return {"issues": get_active_issues(self.coordinator.data)}
 
 
 class ScrutinySensor(CoordinatorEntity, SensorEntity):
