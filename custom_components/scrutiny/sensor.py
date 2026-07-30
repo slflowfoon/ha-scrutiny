@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .helpers import get_attribute_name, get_latest_smart_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,9 +77,11 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
     def state(self):
         """Return the state of the sensor (temperature)."""
         if self._wwn in self.coordinator.data:
-            smart_results = self.coordinator.data[self._wwn].get("data", {}).get("smart_results", [])
-            if smart_results:
-                return smart_results[0].get("temp")
+            latest_smart_data = get_latest_smart_data(
+                self.coordinator.data[self._wwn]
+            )
+            if latest_smart_data:
+                return latest_smart_data.get("temp")
         return None
 
     @property
@@ -89,9 +92,7 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
 
         device_details = self.coordinator.data[self._wwn]
         device_data = device_details.get("data", {}).get("device", {})
-        smart_results = device_details.get("data", {}).get("smart_results", [])
-        latest_smart_data = smart_results[0] if smart_results else {}
-        metadata = device_details.get("metadata", {})
+        latest_smart_data = get_latest_smart_data(device_details)
 
         attributes = {
             "WWN": self._wwn,
@@ -100,18 +101,13 @@ class ScrutinySensor(CoordinatorEntity, SensorEntity):
             "Device Status": device_data.get("device_status"),
             "Power On Hours": latest_smart_data.get("power_on_hours"),
         }
-        
+
         smart_attrs = latest_smart_data.get("attrs", {})
         for attr_id, attr_data in smart_attrs.items():
-            attr_info = metadata.get(str(attr_id), {})
-            if "display_name" in attr_info and attr_info["display_name"]:
-                attr_name = attr_info["display_name"]
-            else:
-                attr_name = f"Unknown Attribute Name {attr_id}"
-            
+            attr_name = get_attribute_name(device_details, str(attr_id))
             status_value = attr_data.get("status")
             attributes[attr_name] = status_value
-            
+
         return attributes
 
     @property
